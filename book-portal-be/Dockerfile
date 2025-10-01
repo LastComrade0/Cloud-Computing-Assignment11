@@ -1,9 +1,18 @@
-FROM maven:3.8-openjdk-18 AS build
-COPY src /usr/src/app/src
-COPY pom.xml /usr/src/app
-RUN mvn -f /usr/src/app/pom.xml clean package
+# Build stage
+FROM maven:3.9.6-eclipse-temurin-17 AS build
+WORKDIR /usr/src/app
 
-FROM openjdk:18-alpine
-COPY --from=build /usr/src/app/target/BookPortal-0.0.1-SNAPSHOT.jar /usr/app/BookPortal-0.0.1-SNAPSHOT.jar
+# Pull deps first (better caching)
+COPY pom.xml .
+RUN mvn -B -DskipTests dependency:go-offline
+
+# Build
+COPY src ./src
+RUN mvn -B -DskipTests clean package
+
+# Runtime stage
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /usr/src/app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/usr/app/BookPortal-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java","-jar","/app/app.jar"]
