@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    environment:
+      MYSQL_DATABASE: book_portal
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppw
+      MYSQL_ROOT_PASSWORD: rootpw
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    mem_limit: "512m"
+
+  book-portal-be:
+    image: jerrychen00/book-portal-be:latest
+    container_name: book-portal-be
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx384m -XX:+UseSerialGC -Djava.net.preferIPv4Stack=true"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/book_portal?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      SPRING_DATASOURCE_USERNAME: "app"
+      SPRING_DATASOURCE_PASSWORD: "apppw"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT: "60000"
+      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "15000"
+      SERVER_TOMCAT_MAX_THREADS: "50"
+    mem_limit: "512m"
+    restart: always
+
+  book-portal-fe:
+    image: jerrychen00/book-portal-fe:latest
+    container_name: book-portal-fe
+    depends_on:
+      - book-portal-be           # simple start order; no health condition
+    restart: always
+
+  book-portal-proxy:
+    image: jerrychen00/book-portal-proxy:latest
+    container_name: book-portal-proxy
+    depends_on:
+      - book-portal-fe
+      - book-portal-be
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - nginx-webroot:/usr/share/nginx/html
+
+volumes:
+  mysql-data:
+  letsencrypt:
+    external: true
+  nginx-webroot:
+    external: true
