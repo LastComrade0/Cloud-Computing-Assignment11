@@ -1,0 +1,39 @@
+name: Node.js CI (Frontend & Proxy)
+on: { push: { branches: ["main"] } }
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Install & build
+        working-directory: book-portal-fe
+        run: |
+          npm ci
+          npm run build
+
+  build-and-push-images:
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN_TWO }}
+      - name: Build & push FE
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: book-portal-fe/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/book-portal-fe:latest
+      - name: Build & push Nginx proxy
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: nginx/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/book-portal-proxy:latest

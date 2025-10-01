@@ -1,0 +1,25 @@
+name: Deploy to EC2 (via SSM)
+on:
+  workflow_run:
+    workflows: ["Node.js CI (Frontend & Proxy)"]
+    types: ["completed"]
+
+jobs:
+  refresh-ec2:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peterkimzz/aws-ssm-send-command@v1.1.1
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+          instance-ids:          ${{ secrets.AWS_INSTANCE_ID }}
+          comment: "Pull latest images and restart"
+          working-directory: "/home/ubuntu"
+          command: |
+            sudo docker compose stop || true
+            sudo docker compose rm -f || true
+            sudo docker compose pull
+            sudo docker compose up -d
+            sudo docker image prune -af || true
